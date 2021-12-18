@@ -1,136 +1,90 @@
 var cryptoZombies;
+var clientStatus = 0; // Offline
 var accounts;
 var userAccount;
+var currentChain;
+
+var web3;
+var cryptoZombiesContract;
 
 var cryptoZombiesAddress = "0x7812b7bab9D4129fDC701874a497472e607AA967";
 
-cryptoZombies = new web3.eth.Contract(cryptoZombiesABI, cryptoZombiesAddress);
-
-function startApp() {
-  var accountInterval = setInterval(function () {
-    if (Web3.eth.accounts[0] !== userAccount) {
-      userAccount = accounts[0];
-
-      getZombiesByOwner(userAccount)
-        .then(displayZombies);
-    }
-  }, 100);
-
-  cryptoZombies.events.Transfer({ filter: { _to: userAccount } })
-    .on("data", function (event) {
-      let data = event.returnValues;
-      getZombiesByOwner(userAccount).then(displayZombies);
-    }).on("error", console.error);
+let destroy = () => {
+  $('html').empty();
+  clientStatus = 2; // Destroyed.
+  requestChain();
 }
 
-
-function displayZombies(ids) {
-  $("#zombies").empty();
-  for (id of ids) {
-
-    getZombieDetails(id)
-      .then(function (zombie) {
-
-
-        $("#zombies").append(`<div class="zombie">
-        <ul>
-          <li>Name: ${zombie.name}</li>
-          <li>DNA: ${zombie.dna}</li>
-          <li>Level: ${zombie.level}</li>
-          <li>Wins: ${zombie.winCount}</li>
-          <li>Losses: ${zombie.lossCount}</li>
-          <li>Ready Time: ${zombie.readyTime}</li>
-        </ul>
-      </div>`);
-      });
-  }
+let requestChain = async () => {
+  await ethereum.request({
+    method: 'wallet_switchEthereumChain',
+    params: [{ chainId: '0x61' }],
+  });
 }
 
-function createRandomZombie(name) {
-  $("#txStatus").text("Creating new zombie on the blockchain. This may take a while...");
-  return cryptoZombies.methods.createRandomZombie(name)
-    .send({ from: userAccount })
-    .on("receipt", function (receipt) {
-      $("#txStatus").text("Successfully created " + name + "!");
-
-      getZombiesByOwner(userAccount).then(displayZombies);
-    })
-    .on("error", function (error) {
-
-      $("#txStatus").text(error);
-    });
+let requestAccounts = async () => {
+  return await ethereum.request({ method: 'eth_requestAccounts' });
 }
 
-function feedOnKitty(zombieId, kittyId) {
-  $("#txStatus").text("Eating a kitty. This may take a while...");
-  return cryptoZombies.methods.feedOnKitty(zombieId, kittyId)
-    .send({ from: userAccount })
-    .on("receipt", function (receipt) {
-      $("#txStatus").text("Ate a kitty and spawned a new Zombie!");
-      getZombiesByOwner(userAccount).then(displayZombies);
-    })
-    .on("error", function (error) {
-      $("#txStatus").text(error);
-    });
-}
-
-function levelUp(zombieId) {
-  $("#txStatus").text("Leveling up your zombie...");
-  return cryptoZombies.methods.levelUp(zombieId)
-    .send({ from: userAccount, value: web3.utils.toWei("0.001", "ether") })
-    .on("receipt", function (receipt) {
-      $("#txStatus").text("Power overwhelming! Zombie successfully leveled up");
-    })
-    .on("error", function (error) {
-      $("#txStatus").text(error);
-    });
-}
-
-function getZombieDetails(id) {
-  return cryptoZombies.methods.zombies(id).call()
-}
-
-function zombieToOwner(id) {
-  return cryptoZombies.methods.zombieToOwner(id).call()
-}
-
-function getZombiesByOwner(owner) {
-  ethereum
-    .request({
-      method: 'eth_sendTransaction',
-      params: [
-        {
-          from: owner,
-          to: cryptoZombiesAddress,
-          value: '0x29a2241af62c0000',
-          gasPrice: '0x09184e72a000',
-          gas: '0x2710',
-        },
-      ],
-    })
-  return cryptoZombies.methods.getZombiesByOwner(owner).call()
-}
-
-async function getAccount() {
-  ethereum.request({ method: 'eth_requestAccounts' });
+let getAccounts = async () => {
   accounts = await ethereum.request({ method: 'eth_accounts' });
+  userAccount = accounts[0];
+  clientStatus = 1; // Connected
 }
 
-ethereum.on('accountsChanged', function (accounts) {
-  getAccount();
+let callMethod = async (method, params) => {
+  cryptoZombiesContract.methods[method](...params).call({ from: userAccount })
+    .then(function (receipt) {
+      console.log(receipt);
+    });
+}
+
+let sendTransaction = async (method, params) => {
+  cryptoZombiesContract.methods[method](...params).send({ from: userAccount })
+    .then(function (receipt) {
+      console.log(receipt);
+    });
+}
+
+let createRandomZombie = async (zombieName) => {
+  return await sendTransaction('createRandomZombie', [zombieName]);
+}
+
+let getZombiesByOwner = async (address) => {
+  return await callMethod('getZombiesByOwner', [address]);
+}
+
+ethereum.on('chainChanged', (chainId) => {
+  currentChain = chainId;
+
+  if (currentChain != 97) {
+    destroy();
+  }
+  else if (currentChain == 97 && clientStatus == 2) {
+    startApp();
+  }
+
 });
 
+ethereum.on('accountsChanged', function (accounts) {
+  userAccount = accounts[0];
+});
 
-window.addEventListener('load', function () {
-
-  if (typeof window.web3 !== 'undefined') {
-    getAccount();
+let startApp = async () => {
+  await requestChain();
+  await requestAccounts();
+  await getAccounts();
+  if (clientStatus) {
+    loadContract();
+    getZombiesByOwner(userAccount);
   }
-  else {
-    console.log('install metamask');
-  }
+}
 
+let loadContract = async () => {
+  web3 = new Web3(window.ethereum);
+  cryptoZombiesContract = new web3.eth.Contract(cryptoZombiesABI, cryptoZombiesAddress);
+}
 
-  startApp()
-
-})
+if (typeof window.ethereum !== 'undefined') {
+  startApp();
+}
