@@ -3,7 +3,6 @@ var clientStatus = 0; // Offline
 var accounts;
 var userAccount;
 var currentChain;
-
 var web3;
 var cryptoZombiesContract;
 
@@ -33,9 +32,9 @@ let getAccounts = async () => {
 }
 
 let callMethod = async (method, params) => {
-  cryptoZombiesContract.methods[method](...params).call({ from: userAccount })
+  return await cryptoZombiesContract.methods[method](...params).call({ from: userAccount })
     .then(function (receipt) {
-      console.log(receipt);
+      return receipt;
     });
 }
 
@@ -51,7 +50,14 @@ let createRandomZombie = async (zombieName) => {
 }
 
 let getZombiesByOwner = async (address) => {
-  return await callMethod('getZombiesByOwner', [address]);
+  let myZombies = await callMethod('getZombiesByOwner', [address]);
+  if (myZombies) {
+    myZombies.forEach(async (tokenId) => {
+      let Zombie = await callMethod('zombies', [tokenId]);
+      console.log(Zombie);
+    });
+  }
+
 }
 
 ethereum.on('chainChanged', (chainId) => {
