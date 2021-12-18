@@ -8,6 +8,7 @@
     <script language="javascript" type="text/javascript" src="cryptozombies_abi.js"></script>
   </head>
   <body>
+    <div id="txStatus"></div>
     <div id="zombies"></div>
 
     <script>
@@ -19,10 +20,10 @@
         cryptoZombies = new web3js.eth.Contract(cryptoZombiesABI, cryptoZombiesAddress);
 
         var accountInterval = setInterval(function() {
-          // Check if account has changed
-          if (Web3.eth.accounts[0] !== userAccount) {
-            userAccount = Web3.eth.accounts[0];
-            // Call a function to update the UI with the new account
+         
+          if (web3.eth.accounts[0] !== userAccount) {
+            userAccount = web3.eth.accounts[0];
+           
             getZombiesByOwner(userAccount)
             .then(displayZombies);
           }
@@ -32,10 +33,11 @@
       function displayZombies(ids) {
         $("#zombies").empty();
         for (id of ids) {
+         
           getZombieDetails(id)
           .then(function(zombie) {
-            // Using ES6's "template literals" to inject variables into the HTML.
-            // Append each one to our #zombies div
+           
+           
             $("#zombies").append(`<div class="zombie">
               <ul>
                 <li>Name: ${zombie.name}</li>
@@ -48,6 +50,42 @@
             </div>`);
           });
         }
+      }
+
+      function createRandomZombie(name) {
+       
+       
+        $("#txStatus").text("Creating new zombie on the blockchain. This may take a while...");
+       
+        return cryptoZombies.methods.createRandomZombie(name)
+        .send({ from: userAccount })
+        .on("receipt", function(receipt) {
+          $("#txStatus").text("Successfully created " + name + "!");
+         
+          getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function(error) {
+         
+          $("#txStatus").text(error);
+        });
+      }
+
+      function feedOnKitty(zombieId, kittyId) {
+       
+       
+        $("#txStatus").text("Eating a kitty. This may take a while...");
+       
+        return cryptoZombies.methods.feedOnKitty(zombieId, kittyId)
+        .send({ from: userAccount })
+        .on("receipt", function(receipt) {
+          $("#txStatus").text("Ate a kitty and spawned a new Zombie!");
+         
+          getZombiesByOwner(userAccount).then(displayZombies);
+        })
+        .on("error", function(error) {
+         
+          $("#txStatus").text(error);
+        });
       }
 
       function getZombieDetails(id) {
@@ -64,16 +102,16 @@
 
       window.addEventListener('load', function() {
 
-        // Checking if Web3 has been injected by the browser (Mist/MetaMask)
-        if (typeof web3 !== 'undefined') {
-          // Use Mist/MetaMask's provider
-          web3js = new Web3(web3.currentProvider);
+       
+        if (typeof Web3 !== 'undefined') {
+         
+          web3js = new Web3(Web3.currentProvider);
         } else {
-          // Handle the case where the user doesn't have Metamask installed
-          // Probably show them a message prompting them to install Metamask
+         
+         
         }
 
-        // Now you can start your app & access web3 freely:
+       
         startApp()
 
       })
